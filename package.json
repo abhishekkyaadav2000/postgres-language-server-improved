@@ -1,0 +1,22 @@
+{
+  "name": "@postgrestools/monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "devDependencies": {
+    "@biomejs/biome": "1.9.4",
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "workspaces": [
+    "packages/@postgrestools/postgrestools",
+    "packages/@postgrestools/backend-jsonrpc",
+    "packages/@postgres-language-server/cli",
+    "packages/@postgres-language-server/backend-jsonrpc"
+  ],
+  "keywords": [],
+  "author": "Supabase Community",
+  "license": "MIT OR Apache-2.0",
+  "packageManager": "bun@1"
+}

@@ -1,0 +1,285 @@
+name: Pull Request
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: # Only run when changes are made to rust code or root Cargo
+      - "crates/**"
+      - "lib/**"
+      - "fuzz/**"
+      - "xtask/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - "rustfmt.toml"
+      - ".env"
+      # or in js packages
+      - "packages/**"
+      # or in workflows
+      - ".github/workflows/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  RUST_LOG: info
+  RUST_BACKTRACE: 1
+  RUSTUP_WINDOWS_PATH_ADD_BIN: 1
+
+jobs:
+  format:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+
+      - name: Free Disk Space
+        uses: ./.github/actions/free-disk-space
+
+      - name: Install toolchain
+        uses: moonrepo/setup-rust@v1
+        with:
+          components: rustfmt
+          bins: taplo-cli
+          cache-base: main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install JS dependencies
+        run: bun install
+
+      - name: Setup Just
+        uses: extractions/setup-just@v3
+
+      - name: Echo Tool Versions
+        run: |
+          just format-ci-versions
+
+      - name: Run format
+        run: |
+          just format-ci
+
+  actionlint:
+    name: Lint GitHub Actions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download actionlint
+        id: get_actionlint
+        run: bash <(curl https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+        shell: bash
+      - name: Check workflow files
+        run: ${{ steps.get_actionlint.outputs.executable }} -color
+        shell: bash
+
+  lint:
+    name: Lint Project
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR Branch
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Free Disk Space
+        uses: ./.github/actions/free-disk-space
+      - name: Install toolchain
+        uses: moonrepo/setup-rust@v1
+        with:
+          components: clippy
+          cache-base: main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # we need to use the same database as we do locally for sqlx prepare to output the same hashes
+      - name: Build and start PostgreSQL with plpgsql_check
+        run: |
+          docker build -t postgres-plpgsql-check:latest .
+          docker run -d --name postgres \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_PASSWORD=postgres \
+            -e POSTGRES_DB=postgres \
+            -p 5432:5432 \
+            postgres-plpgsql-check:latest
+          # Wait for postgres to be ready
+          for _ in {1..30}; do
+            if docker exec postgres pg_isready -U postgres; then
+              break
+            fi
+            sleep 1
+          done
+
+      - uses: tree-sitter/setup-action@v2
+        with:
+          install-lib: false
+
+      - name: Setup sqlx-cli
+        run: cargo install sqlx-cli
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install JS dependencies
+        run: bun install
+
+      - name: Setup Just
+        uses: extractions/setup-just@v3
+
+      - name: Echo Tool Versions
+        run: |
+          just lint-ci-versions
+
+      - name: Run Lints
+        run: |
+          just lint-ci
+
+      - name: Check for changes
+        run: |
+          if [[ $(git status --porcelain) ]]; then
+            git status
+            git diff
+            exit 1
+          fi
+
+  test:
+    name: Test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          # use the same images we use for compiling
+          - os: windows-2022
+          - os: ubuntu-22.04
+          - os: macos-14
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Free Disk Space
+        uses: ./.github/actions/free-disk-space
+      - name: Install toolchain
+        uses: moonrepo/setup-rust@v1
+        with:
+          cache-base: main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Postgres
+        uses: ./.github/actions/setup-postgres
+
+      - uses: tree-sitter/setup-action@v2
+        with:
+          install-lib: false
+
+      - name: Run tests
+        run: cargo test --workspace
+
+  test-js-bindings:
+    name:
+      Test JS Packages
+      # use the same image we use for compiling
+    runs-on: ubuntu-22.04
+    services:
+      postgres:
+        image: postgres:latest
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Free Disk Space
+        uses: ./.github/actions/free-disk-space
+      - name: Install toolchain
+        uses: moonrepo/setup-rust@v1
+        with:
+          cache-base: main
+      - uses: tree-sitter/setup-action@v2
+        with:
+          install-lib: false
+      - name: Build main binary
+        run: cargo build -p pgls_cli --release
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+      - name: Install JS dependencies
+        run: bun install
+
+      - name: Build backend-jsonrpc (deprecated)
+        working-directory: packages/@postgrestools/backend-jsonrpc
+        run: bun run build
+      - name: Run backend-jsonrpc test (deprecated)
+        working-directory: packages/@postgrestools/backend-jsonrpc
+        run: bun run test
+      - name: Run cli test (deprecated)
+        working-directory: packages/@postgrestools/postgrestools
+        run: bun run test
+
+      - name: Build backend-jsonrpc
+        working-directory: packages/@postgres-language-server/backend-jsonrpc
+        run: bun run build
+      - name: Run backend-jsonrpc test
+        working-directory: packages/@postgres-language-server/backend-jsonrpc
+        run: bun run test
+      - name: Run cli test
+        working-directory: packages/@postgres-language-server/cli
+        run: bun run test
+
+  codegen:
+    name: Check Codegen
+    runs-on: ubuntu-22.04
+    services:
+      postgres:
+        image: postgres:latest
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Free Disk Space
+        uses: ./.github/actions/free-disk-space
+      - name: Install toolchain
+        uses: moonrepo/setup-rust@v1
+        with:
+          cache-base: main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: tree-sitter/setup-action@v2
+        with:
+          install-lib: false
+      - name: Ensure RustFMT on nightly toolchain
+        run: rustup component add rustfmt --toolchain nightly
+      - name: echo toolchain
+        run: rustup show
+      - name: Run the analyser codegen
+        run: cargo run -p xtask_codegen -- analyser
+      - name: Run the configuration codegen
+        run: cargo run -p xtask_codegen -- configuration
+      - name: Run the bindings codegen
+        run: cargo run -p xtask_codegen -- bindings
+      - name: Run the splinter codegen
+        run: cargo run -p xtask_codegen -- splinter
+      - name: Run the docs codegen
+        run: cargo run -p docs_codegen
+      - name: Check for git diff -- run "just ready" if you see an error
+        run: |
+          if [[ $(git status --porcelain) ]]; then
+            git status
+            git diff
+            exit 1
+          fi

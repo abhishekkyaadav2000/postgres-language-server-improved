@@ -1,0 +1,43 @@
+site_name: Postgres Language Server
+site_url: https://pg-language-server.com
+site_description: A collection of language tools and a Language Server Protocol (LSP) implementation for Postgres, focusing on developer experience and reliable SQL tooling.
+
+repo_name: supabase-community/postgres-language-server
+repo_url: https://github.com/supabase-community/postgres-language-server
+
+theme:
+  name: "readthedocs"
+  features:
+    - navigation.expand
+  palette:
+    primary: grey
+    accent: red
+nav:
+  - Getting Started: getting_started.md
+  - Manual Installation: manual_installation.md
+  - Configuration: configuration.md
+  - Features:
+      - Syntax Diagnostics: features/syntax_diagnostics.md
+      - Linting: features/linting.md
+      - Type Checking: features/type_checking.md
+      - PL/pgSQL Support: features/plpgsql.md
+      - Autocompletion & Hover: features/editor_features.md
+  - Guides:
+      - Use in your IDE: guides/ide_setup.md
+      - Checking Migrations: guides/checking_migrations.md
+      - Configure database connection: guides/configure_database.md
+      - Suppressions: guides/suppressions.md
+      - Integrate with VCS: guides/vcs_integration.md
+      - Continuous Integration: guides/continuous_integration.md
+  - Reference:
+      - CLI Commands: reference/cli.md
+      - Linter Rules: reference/rules.md
+      - Rule Sources: reference/rule_sources.md
+      - Environment Variables: reference/env_variables.md
+
+plugins:
+  - gh-admonitions
+  - mike
+
+markdown_extensions:
+  - admonition

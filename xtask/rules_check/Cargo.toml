@@ -1,0 +1,18 @@
+[package]
+description = "Internal script to make sure that the metadata or the rules are correct"
+edition     = "2021"
+name        = "rules_check"
+publish     = false
+version     = "0.0.0"
+
+[dependencies]
+anyhow                  = { workspace = true }
+pgls_analyse            = { workspace = true }
+pgls_analyser           = { workspace = true }
+pgls_console            = { workspace = true }
+pgls_diagnostics        = { workspace = true }
+pgls_query              = { workspace = true }
+pgls_query_ext          = { workspace = true }
+pgls_statement_splitter = { workspace = true }
+pgls_workspace          = { workspace = true }
+pulldown-cmark          = "0.12.2"
