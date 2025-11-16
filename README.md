@@ -1,5 +1,21 @@
 ![Postgres Language Server](/docs/images/pls-github.png)
 
+# Postgres Language Server (Improved Version)
+
+### About this Project
+This is an independent working copy of the open-source
+“postgres-language-server” project.  
+I am studying the codebase, experimenting with improvements, and
+planning to add new features to this version.
+
+### Original Project
+This code is based on the open-source project published by the Supabase community.
+
+### Goal of This Version
+- Learn the architecture
+- Explore language server concepts
+- Add improvements and document my learnings
+
 # Postgres Language Server
 
 A collection of language tools and a Language Server Protocol (LSP) implementation for Postgres, focusing on developer experience and reliable SQL tooling.
